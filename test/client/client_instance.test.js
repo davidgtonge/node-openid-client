@@ -1072,6 +1072,29 @@ const encode = object => base64url.encode(JSON.stringify(object));
         });
       });
 
+      context('when tls_client_auth', function () {
+        it('returns the body, ca, key & cert httpOptions', function () {
+          const cert = 'cert as a string';
+          const key = 'key as a string';
+          const ca = 'ca cert as a string';
+
+          const issuer = new Issuer();
+          const client = new issuer.Client({
+            client_id: 'identifier',
+            client_tls_cert: cert,
+            client_tls_key: key,
+            client_tls_ca: ca,
+            token_endpoint_auth_method: 'tls_client_auth',
+          });
+          expect(client.authFor('token')).to.eql({
+            body: { client_id: 'identifier' },
+            cert,
+            key,
+            ca,
+          });
+        });
+      });
+
       context('when client_secret_basic', function () {
         it('is the default', function () {
           const issuer = new Issuer();
