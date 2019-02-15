@@ -347,6 +347,40 @@ client.authorizationCallback(..., ...).then(function (tokenSet) {
 });
 ```
 
+### Client Initiated Backchannel Authentication (CIBA)
+
+The client supports the [OpenID CIBA][ciba] spec.  A simple example is below:
+
+```js
+    const client = new this.issuer.Client({ 
+      client_id: 'client_id', 
+      backchannel_token_delivery_mode: 'ping' }
+    );
+
+    client.ciba({login_hint: 'user-id'})
+      .then((result) => console.log(result.auth_req_id))
+
+    client.grant({
+      grant_type: 'urn:openid:params:modrna:grant-type:backchannel_request',
+      auth_req_id: 'id received in previous method'
+    }).then(tokenSet => console.log(tokenSet))
+
+```
+
+To use a signed ciba request, simply pass the required algorithm when initialising the client
+
+```js
+const client = new this.issuer.Client({ 
+  client_id: 'client_id', 
+  backchannel_token_delivery_mode: 'ping' 
+  backchannel_authentication_request_signing_alg: 'RS256',
+}, keystore);
+
+client.ciba({login_hint: 'user-id'})
+  .then((result) => console.log(result.auth_req_id))
+```
+
+
 ## Usage with passport
 Once you have a Client instance, just pass it to the Strategy. Issuer is best discovered, Client
 passed properties manually or via an uri (see [get-started](#get-started)).
@@ -438,3 +472,4 @@ console.log('httpOptions %j', Issuer.defaultHttpOptions);
 [openid-certified-link]: http://openid.net/certification/
 [openid-certified-logo]: https://cdn.rawgit.com/panva/node-openid-client/master/OpenID_Certified.png
 [passport-url]: http://passportjs.org
+[ciba]; https://openid.net/specs/openid-client-initiated-backchannel-authentication-core-1_0.html

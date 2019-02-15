@@ -2107,6 +2107,103 @@ describe('Distributed and Aggregated Claims', function () {
     });
   });
 
+  describe('#signedCibaRequest', function () {
+    before(function () {
+      this.keystore = jose.JWK.createKeyStore();
+      return this.keystore.generate('RSA', 512);
+    });
+
+    before(function () {
+      this.issuer = new Issuer({
+        issuer: 'https://op.example.com',
+        backchannel_authentication_endpoint: 'https://op.example.com/ciba',
+      });
+    });
+
+    it('signs with RS*', function () {
+      const client = new this.issuer.Client({ client_id: 'client_id', backchannel_token_delivery_mode: 'poll' }, this.keystore);
+
+      return client.signedCibaRequest({ login_hint: 'foobar', client_notification_token: 'some-token' }, 'RS256')
+        .then((signed) => {
+          const parts = signed.split('.');
+          const header = JSON.parse(base64url.decode(parts[0]));
+          const payload = JSON.parse(base64url.decode(parts[1]));
+          expect(header).to.contain({ alg: 'RS256', typ: 'JWT' }).and.have.property('kid');
+          expect(payload).to.contain({
+            iss: 'client_id',
+            aud: 'https://op.example.com',
+            client_notification_token: 'some-token',
+            login_hint: 'foobar',
+          });
+          expect(payload).to.have.property('jti');
+          expect(payload).to.have.property('iat');
+          expect(payload).to.have.property('exp');
+          expect(payload).to.have.property('nbf');
+
+          expect(parts[2].length).to.be.ok;
+        });
+    });
+  });
+
+  describe('#ciba', function () {
+    before(function () {
+      this.keystore = jose.JWK.createKeyStore();
+      return this.keystore.generate('RSA', 512);
+    });
+
+    before(function () {
+      this.issuer = new Issuer({
+        issuer: 'https://op.example.com',
+        backchannel_authentication_endpoint: 'https://op.example.com/ciba',
+      });
+    });
+
+    afterEach(nock.cleanAll);
+
+    it('ping mode requires notification token', function () {
+      const client = new this.issuer.Client({ client_id: 'client_id', backchannel_token_delivery_mode: 'ping' });
+
+      return client.ciba({ login_hint: 'foobar' })
+        .then(fail, (error) => {
+          expect(error).to.be.instanceof(Error);
+          expect(error).to.have.property('message', 'client_notification_token MUST be provided when the Client is configured to use ping or push modes');
+        });
+    });
+
+
+    it('unsigned', function () {
+      nock('https://op.example.com')
+        .post('/ciba')
+        .reply(200, { auth_req_id: 'id-123', expires_in: 3600 });
+
+      const client = new this.issuer.Client({ client_id: 'client_id', backchannel_token_delivery_mode: 'ping' });
+
+      return client.ciba({ login_hint: 'foobar', client_notification_token: 'some-token' })
+        .then((result) => {
+          expect(result).to.have.property('auth_req_id', 'id-123');
+          expect(result).to.have.property('expires_in', 3600);
+        });
+    });
+
+    it('signed', function () {
+      nock('https://op.example.com')
+        .post('/ciba', /request=\w+\.\w+\.\w+/gi)
+        .reply(200, { auth_req_id: 'id-123', expires_in: 3600 });
+
+      const client = new this.issuer.Client({
+        client_id: 'client_id',
+        backchannel_token_delivery_mode: 'ping',
+        backchannel_authentication_request_signing_alg: 'RS256',
+      }, this.keystore);
+
+      return client.ciba({ login_hint: 'foobar', client_notification_token: 'some-token' })
+        .then((result) => {
+          expect(result).to.have.property('auth_req_id', 'id-123');
+          expect(result).to.have.property('expires_in', 3600);
+        });
+    });
+  });
+
   describe('#requestObject', function () {
     before(function () {
       this.keystore = jose.JWK.createKeyStore();
